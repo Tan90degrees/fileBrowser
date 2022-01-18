@@ -95,6 +95,12 @@ func (h servHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// log.Println(r.RemoteAddr)
 	path := path.Clean(r.URL.Path)
 	if path == "/favicon.ico" {
+		fp, err := os.Open("./templates/favicon.ico")
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		io.Copy(w, fp)
 		return
 	}
 	i, err := os.Stat(path)
@@ -105,6 +111,7 @@ func (h servHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.Println(err)
 			return
 		}
+		w.WriteHeader(http.StatusNotFound)
 		io.Copy(w, efp)
 		return
 	}
@@ -122,6 +129,7 @@ func (h servHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				log.Println(err)
 				return
 			}
+			w.WriteHeader(http.StatusNotFound)
 			io.Copy(w, efp)
 			return
 		}
