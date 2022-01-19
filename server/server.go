@@ -27,13 +27,25 @@ type LIST struct {
 
 type servHandler int8
 
-func server(conn io.Writer, dirPath string) {
+func notFound(w http.ResponseWriter) {
+	fp, err := os.Open("./templates/404.html")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+	io.Copy(w, fp)
+	fp.Close()
+}
+
+func server(conn http.ResponseWriter, dirPath string) {
 	aimDir := new(LIST)
 	aimDir.Path = dirPath + "/"
 	aimDir.Pre, _ = path.Split(dirPath)
 	dp, err := os.ReadDir(dirPath)
 	if err != nil {
 		log.Println(err)
+		notFound(conn)
 		return
 	}
 	for _, v := range dp {
@@ -41,7 +53,8 @@ func server(conn io.Writer, dirPath string) {
 			fs, err := os.Stat(dirPath + "/" + v.Name())
 			if err != nil {
 				log.Println(err)
-				os.Exit(0)
+				notFound(conn)
+				return
 			}
 			var modTime string
 			name := fs.Name()
@@ -55,13 +68,15 @@ func server(conn io.Writer, dirPath string) {
 			aimDir.Dirs = append(aimDir.Dirs, Info{fs.Name(), name, size, modTime})
 			if err != nil {
 				log.Println(err)
-				os.Exit(0)
+				notFound(conn)
+				return
 			}
 		} else {
 			fs, err := os.Stat(dirPath + "/" + v.Name())
 			if err != nil {
 				log.Println(err)
-				os.Exit(0)
+				notFound(conn)
+				return
 			}
 			var modTime string
 			name := fs.Name()
@@ -75,7 +90,8 @@ func server(conn io.Writer, dirPath string) {
 			aimDir.Files = append(aimDir.Files, Info{fs.Name(), name, size, modTime})
 			if err != nil {
 				log.Println(err)
-				os.Exit(0)
+				notFound(conn)
+				return
 			}
 		}
 	}
@@ -87,7 +103,8 @@ func server(conn io.Writer, dirPath string) {
 	err = tmp.Execute(conn, aimDir)
 	if err != nil {
 		log.Println(err)
-		os.Exit(0)
+		notFound(conn)
+		return
 	}
 }
 
@@ -106,13 +123,7 @@ func (h servHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	i, err := os.Stat(path)
 	if err != nil {
 		log.Println(err)
-		efp, err := os.Open("./templates/404.html")
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		w.WriteHeader(http.StatusNotFound)
-		io.Copy(w, efp)
+		notFound(w)
 		return
 	}
 	if i.IsDir() {
@@ -124,13 +135,7 @@ func (h servHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fp, err := os.Open(path)
 		if err != nil {
 			log.Println(err)
-			efp, err := os.Open("./templates/404.html")
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			w.WriteHeader(http.StatusNotFound)
-			io.Copy(w, efp)
+			notFound(w)
 			return
 		}
 		io.Copy(w, fp)
