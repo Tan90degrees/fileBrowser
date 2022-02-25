@@ -29,7 +29,7 @@ func RegUser() error {
 	fmt.Scanln(&passwd)
 	fmt.Print("Permission:")
 	fmt.Scanln(&permission)
-	fp, err := os.OpenFile(USER_FILE, os.O_APPEND|os.O_CREATE, 0777)
+	fp, err := os.OpenFile(USER_FILE, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0777)
 	if err != nil {
 		return err
 	}
