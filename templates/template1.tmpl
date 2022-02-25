@@ -2,23 +2,17 @@
 <html>
 
 <head>
-    <meta charset="utf-8" />
-    <link rel="shortcut icon" href="/favicon.ico">
+    <meta charset="utf-8">
     <title>Index of {{.Path}}</title>
 </head>
 
 <body>
     <h1>Index of {{.Path}}</h1>
     <hr>
-<pre>
-<a href="{{.Pre}}">..</a>
-{{range $i, $v := .Dirs}}
-<a href="{{$v.Path}}/">{{$v.Name}}</a>{{$v.ModTime}}                   -
-{{end}}
-{{range $i, $v := .Files}}
-<a href="{{$v.Path}}">{{$v.Name}}</a>{{$v.ModTime}}{{$v.Size}}
-{{end}}
-</pre>
+<pre><a href="{{.Pre}}">../</a>
+{{range $i, $v := .Dirs}}<a href="{{$v.Path}}/">{{$v.Name}}/</a>{{$v.ModTime}}                   -
+{{end}}{{range $i, $v := .Files}}<a href="{{$v.Path}}">{{$v.Name}}</a> {{$v.ModTime}}{{$v.Size}}
+{{end}}</pre>
     <hr>
 </body>
 
