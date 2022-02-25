@@ -66,7 +66,23 @@ func main() {
 				Handler: server.ServHandler{Root: root, Pre: preRoot, UserOnline: auth.InitUserList()},
 			}
 		case "register":
-			auth.RegUser()
+			err = auth.RegUser()
+			if err != nil {
+				log.Println(err)
+				break
+			}
+			fmt.Println("Registered")
+		case "exit":
+			if alive == 0 {
+				os.Exit(0)
+			}
+			if err = serv.Shutdown(context.TODO()); err != nil {
+				log.Println("Can not shutdown server")
+				break
+			}
+			wg.Wait()
+			fmt.Println("Server shutdown")
+			os.Exit(0)
 		default:
 			fmt.Print(">>>")
 		}
