@@ -26,7 +26,10 @@ func main() {
 	if len(os.Args) != 2 {
 		log.Fatal("Usage : fileBrowser[.exe] [path]")
 	}
-	root := os.Args[1]
+	root := filepath.Clean(os.Args[1])
+	if root[len(root)-1] == '/' {
+		root = root[:len(root)-1]
+	}
 	stat, err := os.Stat(root)
 	if err != nil || !stat.IsDir() {
 		log.Fatal("\"", os.Args[1], "\" is not a directory.")
@@ -50,7 +53,7 @@ func main() {
 				break
 			}
 			wg.Add(1)
-			go server.RunServer(filepath.Clean(root), serv, &wg)
+			go server.RunServer(serv, &wg)
 			alive = 1
 			fmt.Println("Server start")
 		case "shutdown":

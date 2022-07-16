@@ -237,7 +237,7 @@ func (h ServHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		notFound(w)
 		return
 	}
-	servPath := filepath.Join(h.Root, filepath.Clean(r.URL.Path))
+	servPath := filepath.Join(h.Root, r.URL.Path)
 	if h.Pre == servPath {
 		return
 	}
@@ -273,7 +273,7 @@ func (h ServHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func RunServer(root string, serv *http.Server, wg *sync.WaitGroup) {
+func RunServer(serv *http.Server, wg *sync.WaitGroup) {
 	defer wg.Done()
 	err := serv.ListenAndServe()
 	if err != nil {
