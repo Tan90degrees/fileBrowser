@@ -8,8 +8,19 @@
 
 <body>
     <h1>Index of {{.Path}}</h1>
+
     <hr>
-<pre><a href="{{.Pre}}">../</a>
+      <form method="post" enctype="multipart/form-data">
+        <div>
+          <label for="file">选择要上传的文件</label>
+          <input type="file" id="file" name="file" multiple/>
+          <button>提交</button>
+        </div>
+      </form>
+    <hr>
+
+<pre><a href="{{.Root}}">~/</a>
+<a href="{{.Pre}}">../</a>
 {{range $i, $v := .Dirs}}<a href="{{$v.Path}}/">{{$v.Name}}/</a>{{$v.ModTime}}                   -
 {{end}}{{range $i, $v := .Files}}<a href="{{$v.Path}}">{{$v.Name}}</a> {{$v.ModTime}}{{$v.Size}}
 {{end}}</pre>

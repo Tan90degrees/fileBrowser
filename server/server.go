@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -16,17 +17,14 @@ import (
 )
 
 const (
-	FAVICON     = "/favicon.ico"
-	UNIXFAVICON = "./static/favicon.ico"
-	// WINFAVICON = ".\\static\\favicon.ico"
-	UNIXNOTFOUND = "./static/404.html"
-	// WINNOTFOUND = ".\\static\\404.html"
-	UNIXTEMPLATE1 = "./templates/template1.tmpl"
-	// WINTEMPLATE1 = ".\\templates\\template1.tmpl"
-	UNIXLOGIN = "./static/login.html"
-	// WINLOGIN   = ".\\static\\login.html"
-	LOGIN_PATH = "/login"
+	FAVICON_REQ_PATH  = "/favicon.ico"
+	LOGIN_REQ_PATH    = "/login"
+	TEMPLATE_PATH     = "./templates/template1.tmpl"
+	FAVICON_FILE_PATH = "./static/favicon.ico"
+	LOGIN_HTML_PATH   = "./static/login.html"
 )
+
+var HttpStatusHtmlPath [600]string
 
 type Info struct {
 	Path    string
@@ -36,6 +34,7 @@ type Info struct {
 }
 
 type LIST struct {
+	Root  string
 	Pre   string
 	Path  string
 	Dirs  []Info
@@ -48,19 +47,34 @@ type ServHandler struct {
 	UserOnline *auth.USER_NODE
 }
 
-func notFound(w http.ResponseWriter) {
-	fp, err := os.Open(UNIXNOTFOUND)
-	if err != nil {
-		log.Println(err)
-		return
+func initHttpStatusHtmlPath() {
+	HttpStatusHtmlPath[http.StatusProcessing] = "./static/102.html"
+	HttpStatusHtmlPath[http.StatusBadRequest] = "./static/400.html"
+	HttpStatusHtmlPath[http.StatusNotFound] = "./static/404.html"
+	HttpStatusHtmlPath[http.StatusBadGateway] = "./static/502.html"
+}
+
+func simpleRequest(w http.ResponseWriter, code uint) error {
+	if code > 599 {
+		return fmt.Errorf(fmt.Sprintf("status code(%v) is too large", code))
 	}
-	w.WriteHeader(http.StatusNotFound)
-	io.Copy(w, fp)
-	fp.Close()
+	if HttpStatusHtmlPath[code] != "" {
+		fp, err := os.Open(HttpStatusHtmlPath[code])
+		if err != nil {
+			log.Println(err)
+			return fmt.Errorf("file of status code(%v) is not found", code)
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		io.Copy(w, fp)
+		fp.Close()
+		return nil
+	} else {
+		return fmt.Errorf(fmt.Sprintf("status code(%v) is not supported", code))
+	}
 }
 
 func loginPage(w http.ResponseWriter) {
-	fp, err := os.Open(UNIXLOGIN)
+	fp, err := os.Open(LOGIN_HTML_PATH)
 	if err != nil {
 		log.Println(err)
 		return
@@ -74,10 +88,10 @@ func clearCookie(w http.ResponseWriter, cookie *http.Cookie) {
 	http.SetCookie(w, cookie)
 }
 
-func server(conn http.ResponseWriter, dirPath string, root string) {
+func servGetDir(conn http.ResponseWriter, dirPath string, root string) {
 	aimDir := new(LIST)
+	aimDir.Root = "/"
 	aimDir.Path = dirPath + "/"
-	// aimDir.Path = dirPath + "\\"
 	preDir, _ := filepath.Split(dirPath)
 	if len(preDir) > len(root) {
 		aimDir.Pre = preDir[len(root):]
@@ -87,57 +101,56 @@ func server(conn http.ResponseWriter, dirPath string, root string) {
 	dp, err := os.ReadDir(dirPath)
 	if err != nil {
 		log.Println(err)
-		notFound(conn)
+		err = simpleRequest(conn, http.StatusNotFound)
+		if err != nil {
+			log.Println(err)
+		}
 		return
 	}
 	for _, v := range dp {
 		if v.IsDir() {
-			fs, err := os.Stat(filepath.Join(dirPath, v.Name()))
+			fi, err := os.Stat(filepath.Join(dirPath, v.Name()))
 			if err != nil {
 				log.Println(err)
-				notFound(conn)
+				err = simpleRequest(conn, http.StatusNotFound)
+				if err != nil {
+					log.Println(err)
+				}
 				return
 			}
 			var modTime string
-			name := fs.Name()
+			name := fi.Name()
 			if len(name) > 50 {
-				name = formatTail(fs.Name(), 50)
-				modTime = fs.ModTime().Format(time.UnixDate)
+				name = formatTail(fi.Name(), 50)
+				modTime = fi.ModTime().Format(time.UnixDate)
 			} else {
-				modTime = formatHead(fs.ModTime().Format(time.UnixDate), caclEmpty(fs.Name(), 50))
+				modTime = formatHead(fi.ModTime().Format(time.UnixDate), caclEmpty(fi.Name(), 50))
 			}
-			size := formatHead(strconv.FormatInt(fs.Size(), 10), 20)
-			aimDir.Dirs = append(aimDir.Dirs, Info{fs.Name(), name, size, modTime})
-			if err != nil {
-				log.Println(err)
-				notFound(conn)
-				return
-			}
+			size := formatHead(strconv.FormatInt(fi.Size(), 10), 20)
+			aimDir.Dirs = append(aimDir.Dirs, Info{fi.Name(), name, size, modTime})
 		} else {
-			fs, err := os.Stat(filepath.Join(dirPath, v.Name()))
+			fi, err := os.Stat(filepath.Join(dirPath, v.Name()))
 			if err != nil {
 				log.Println(err)
-				notFound(conn)
+				err = simpleRequest(conn, http.StatusNotFound)
+				if err != nil {
+					log.Println(err)
+				}
 				return
 			}
 			var modTime string
-			name := fs.Name()
+			name := fi.Name()
 			if len(name) > 50 {
-				name = formatTail(fs.Name(), 50)
-				modTime = fs.ModTime().Format(time.UnixDate)
+				name = formatTail(fi.Name(), 50)
+				modTime = fi.ModTime().Format(time.UnixDate)
 			} else {
-				modTime = formatHead(fs.ModTime().Format(time.UnixDate), caclEmpty(fs.Name(), 50))
+				modTime = formatHead(fi.ModTime().Format(time.UnixDate), caclEmpty(fi.Name(), 50))
 			}
-			size := formatHead(strconv.FormatInt(fs.Size(), 10), 20)
-			aimDir.Files = append(aimDir.Files, Info{fs.Name(), name, size, modTime})
-			if err != nil {
-				log.Println(err)
-				notFound(conn)
-				return
-			}
+			size := formatHead(strconv.FormatInt(fi.Size(), 10), 20)
+			aimDir.Files = append(aimDir.Files, Info{fi.Name(), name, size, modTime})
 		}
 	}
-	tmp, err := template.ParseFiles(UNIXTEMPLATE1)
+	tmp, err := template.ParseFiles(TEMPLATE_PATH)
 	if err != nil {
 		log.Println(err)
 		os.Exit(0)
@@ -145,7 +158,10 @@ func server(conn http.ResponseWriter, dirPath string, root string) {
 	err = tmp.Execute(conn, aimDir)
 	if err != nil {
 		log.Println(err)
-		notFound(conn)
+		err = simpleRequest(conn, http.StatusNotFound)
+		if err != nil {
+			log.Println(err)
+		}
 		return
 	}
 }
@@ -184,9 +200,129 @@ func (h ServHandler) login(w http.ResponseWriter, r *http.Request) int8 {
 	return loginFlag
 }
 
+func servPost(h *ServHandler, w http.ResponseWriter, r *http.Request, servPath string) {
+	err := checkPath(h.Pre, servPath)
+	if err != nil {
+		log.Println(err)
+		err = simpleRequest(w, http.StatusBadRequest)
+		if err != nil {
+			log.Println(err)
+		}
+		return
+	}
+	i, err := os.Stat(servPath)
+	if err != nil {
+		log.Println(err)
+		err = simpleRequest(w, http.StatusNotFound)
+		if err != nil {
+			log.Println(err)
+		}
+		return
+	}
+	if !i.IsDir() {
+		err = simpleRequest(w, http.StatusBadRequest)
+		if err != nil {
+			log.Println(err)
+		}
+		return
+	}
+	mr, err := r.MultipartReader()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	if !diskCapacityEnough(servPath, uint64(r.ContentLength)) {
+		log.Println("Insufficient disk space")
+		err = simpleRequest(w, http.StatusBadRequest)
+		if err != nil {
+			log.Println(err)
+		}
+		return
+	}
+
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		formName := part.FormName()
+		if formName == "" {
+			continue
+		}
+
+		fileName := part.FileName()
+		if fileName == "" {
+			continue
+		}
+
+		fPath := filepath.Join(servPath, fileName)
+		log.Println(fPath)
+		_, err = os.Stat(fPath)
+		if err == nil {
+			log.Println("File already exist")
+			continue
+		}
+		fp, err := os.OpenFile(fPath, os.O_CREATE|os.O_WRONLY, 0640)
+		if err != nil {
+			log.Println(err)
+			err = simpleRequest(w, http.StatusBadGateway)
+			if err != nil {
+				log.Println(err)
+			}
+			return
+		}
+		io.Copy(fp, part)
+		fp.Close()
+	}
+}
+
+func servGet(h *ServHandler, w http.ResponseWriter, r *http.Request, servPath string) {
+	err := checkPath(h.Pre, servPath)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	fi, err := os.Stat(servPath)
+	if err != nil {
+		log.Println(err)
+		err = simpleRequest(w, http.StatusNotFound)
+		if err != nil {
+			log.Println(err)
+		}
+		return
+	}
+	if fi.IsDir() {
+		servGetDir(w, servPath, h.Root)
+	} else {
+		fp, err := os.Open(servPath)
+		if err != nil {
+			log.Println(err)
+			err = simpleRequest(w, http.StatusNotFound)
+			if err != nil {
+				log.Println(err)
+			}
+			return
+		}
+		fi, err := fp.Stat()
+		if err != nil {
+			log.Println(err)
+			err = simpleRequest(w, http.StatusNotFound)
+			if err != nil {
+				log.Println(err)
+			}
+			return
+		}
+		w.Header().Add("content-length", strconv.FormatInt(fi.Size(), 10))
+		io.Copy(w, fp)
+		fp.Close()
+	}
+}
+
 func (h ServHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == FAVICON {
-		fp, err := os.Open(UNIXFAVICON)
+	reqPath := path.Clean(r.URL.Path)
+	if reqPath == FAVICON_REQ_PATH {
+		fp, err := os.Open(FAVICON_FILE_PATH)
 		if err != nil {
 			log.Println(err)
 			return
@@ -195,9 +331,8 @@ func (h ServHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reqCookie := r.Cookies()
-	fmt.Println(reqCookie)
 	if len(reqCookie) == 0 {
-		if r.URL.Path == LOGIN_PATH {
+		if reqPath == LOGIN_REQ_PATH {
 			isLogin := h.login(w, r)
 			switch isLogin {
 			case auth.LOGIN_SUCCESS:
@@ -211,7 +346,10 @@ func (h ServHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("Wrong password"))
 				return
 			default:
-				notFound(w)
+				err := simpleRequest(w, http.StatusNotFound)
+				if err != nil {
+					log.Println(err)
+				}
 				w.Write([]byte("Undefined mistake"))
 				return
 			}
@@ -225,56 +363,42 @@ func (h ServHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case auth.COOKIE_GOOD:
 	case auth.COOKIE_NOTFOUND:
 		clearCookie(w, reqCookie[0])
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	case auth.COOKIE_EXPIRED:
 		clearCookie(w, reqCookie[0])
-		loginPage(w)
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	case auth.UNDEFINED_WRONG:
-		notFound(w)
+		err := simpleRequest(w, http.StatusNotFound)
+		if err != nil {
+			log.Println(err)
+		}
 		return
 	default:
-		notFound(w)
-		return
-	}
-	servPath := filepath.Join(h.Root, r.URL.Path)
-	if h.Pre == servPath {
-		return
-	}
-	i, err := os.Stat(servPath)
-	if err != nil {
-		log.Println(err)
-		notFound(w)
-		return
-	}
-	if i.IsDir() {
-		if r.URL.Path[len(r.URL.Path)-1] != '/' {
-			http.Redirect(w, r, r.URL.Path+"/", http.StatusMovedPermanently)
-		} else {
-			server(w, servPath, h.Root)
-			return
+		err := simpleRequest(w, http.StatusNotFound)
+		if err != nil {
+			log.Println(err)
 		}
+		return
+	}
+	if r.Method == http.MethodGet {
+		servGet(&h, w, r, filepath.Join(h.Root, reqPath))
+	} else if r.Method == http.MethodPost {
+		servPost(&h, w, r, filepath.Join(h.Root, reqPath))
+		http.Redirect(w, r, reqPath, http.StatusFound)
 	} else {
-		fp, err := os.Open(servPath)
+		err := simpleRequest(w, http.StatusBadRequest)
 		if err != nil {
 			log.Println(err)
-			notFound(w)
-			return
 		}
-		fs, err := fp.Stat()
-		if err != nil {
-			log.Println(err)
-			notFound(w)
-			return
-		}
-		w.Header().Add("content-length", strconv.FormatInt(fs.Size(), 10))
-		io.Copy(w, fp)
-		fp.Close()
+		log.Println("Unknown request method", r.Method)
 	}
 }
 
 func RunServer(serv *http.Server, wg *sync.WaitGroup) {
 	defer wg.Done()
+	initHttpStatusHtmlPath()
 	err := serv.ListenAndServe()
 	if err != nil {
 		log.Println(err)

@@ -30,8 +30,8 @@ func main() {
 	if root[len(root)-1] == '/' {
 		root = root[:len(root)-1]
 	}
-	stat, err := os.Stat(root)
-	if err != nil || !stat.IsDir() {
+	fi, err := os.Stat(root)
+	if err != nil || !fi.IsDir() {
 		log.Fatal("\"", os.Args[1], "\" is not a directory.")
 	}
 	var alive uint8
@@ -43,6 +43,11 @@ func main() {
 		Addr:    ":10086",
 		Handler: server.ServHandler{Root: root, Pre: preRoot, UserOnline: auth.InitUserList()},
 	}
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		log.Println("Get absolute path failed")
+	}
+	log.Println("Now working on: ", rootAbs)
 	for {
 		fmt.Print(">>>")
 		fmt.Scanln(&cmd)
@@ -56,14 +61,14 @@ func main() {
 			go server.RunServer(serv, &wg)
 			alive = 1
 			fmt.Println("Server start")
-		case "shutdown":
+		case "stop":
 			if err = serv.Shutdown(context.TODO()); err != nil {
-				log.Println("Can not shutdown server")
+				log.Println("Can not stop server")
 				break
 			}
 			wg.Wait()
 			alive = 0
-			fmt.Println("Server shutdown")
+			fmt.Println("Server stopped")
 			serv = &http.Server{
 				Addr:    ":10086",
 				Handler: server.ServHandler{Root: root, Pre: preRoot, UserOnline: auth.InitUserList()},
@@ -80,14 +85,14 @@ func main() {
 				os.Exit(0)
 			}
 			if err = serv.Shutdown(context.TODO()); err != nil {
-				log.Println("Can not shutdown server")
+				log.Println("Can not stop server")
 				break
 			}
 			wg.Wait()
-			fmt.Println("Server shutdown")
+			fmt.Println("Server stopped")
 			os.Exit(0)
 		default:
-			fmt.Print(">>>")
+			fmt.Println("Unknown command. Please input [start][stop][register][exit]")
 		}
 	}
 }
